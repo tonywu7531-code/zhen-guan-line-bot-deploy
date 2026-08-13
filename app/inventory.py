@@ -13,6 +13,7 @@ class InventoryItem:
     name: str
     quantity: str
     unit: str
+    recent_purchase_price: str
 
     @property
     def in_stock(self) -> bool:
@@ -34,6 +35,7 @@ class InventoryService:
                     name=row["name"].strip(),
                     quantity=row["quantity"].strip(),
                     unit=row["unit"].strip(),
+                    recent_purchase_price=row.get("recent_purchase_price", "").strip(),
                 )
                 for row in csv.DictReader(source)
             ]
@@ -68,7 +70,7 @@ def build_inventory_reply(query: str, inventory: InventoryService) -> str:
         items = inventory.all_items()
         if not items:
             return "目前沒有庫存資料。"
-        return "📦 目前庫存\n\n" + "\n".join(_format_summary(item) for item in items)
+        return "📦 目前庫存\n\n" + "\n\n".join(_format_summary(item) for item in items)
 
     matches = inventory.search(cleaned_query)
     if not matches:
@@ -83,18 +85,20 @@ def build_inventory_reply(query: str, inventory: InventoryService) -> str:
         return (
             f"📦 {item.code}｜{item.name}\n"
             f"目前庫存：{item.quantity} {item.unit}\n"
+            f"最近進價：{item.recent_purchase_price or '尚未匯入'}\n"
             f"庫存狀態：{status}"
         )
 
-    shown_items = matches[:5]
     result = f"📦「{cleaned_query}」查到 {len(matches)} 個品項\n\n"
-    result += "\n".join(_format_summary(item) for item in shown_items)
-    if len(matches) > len(shown_items):
-        result += "\n…結果過多，請輸入更完整的名稱或商品編號。"
+    result += "\n\n".join(_format_summary(item) for item in matches)
     return result
 
 
 def _format_summary(item: InventoryItem) -> str:
     status = "有貨" if item.in_stock else "缺貨"
-    return f"{item.code}｜{item.name}\n庫存：{item.quantity} {item.unit}｜{status}"
-
+    price = item.recent_purchase_price or "尚未匯入"
+    return (
+        f"{item.code}｜{item.name}\n"
+        f"庫存：{item.quantity} {item.unit}｜{status}\n"
+        f"最近進價：{price}"
+    )
